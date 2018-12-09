@@ -38,8 +38,8 @@ Standard usage currently mostly falls into one of two forms:
 
 1. Reading and producing a new `DOOR32.SYS` for a door to consume.
 2. Direct use where a `DOOR32.SYS` is not involved at all. For example, with [NetFoss](http://pcmicro.com/netfoss/) and 16-bit doors such as LORD. In this pattern, the `{fd}` param will be of use to you.
-
-### Example
+## Examples
+### DOOR32.SYS
 The following illustrates setting up [Jezebel](http://www.dreamlandbbs.org/jezebel/) under Windows:
 
 First, your `menu.hjson` may have an entry similar to the following:
@@ -78,6 +78,44 @@ We've now told ENiGMA½ to launch Jezebel by way of proxy through bivrost!. When
 1. Connect up to the ENiGMA½ temporary `socket` server port supplied via `--port`.
 2. Read the `DOOR32.SYS` supplied at `--dropfile` and produce a new `DOOR32.SYS` containing the shared socket descriptor that Jezebel wants in the `--out` directory.
 3. Finally, launch Jezebel.
+
+### DOOR.SYS (Using Netfoss)
+The following illustrates setting up [L.O.R.D](http://lord.lordlegacy.com/) under Windows:
+This also requires the use of netfoss (http://pcmicro.com/netfoss/)
+
+`Note: There is no dropfile switch for bivrost here`
+
+`LORD needs to be configured to get the DOOR.SYS directly from ENiGMA½ for each node`
+
+First, your `menu.hjson` may have an entry similar to the following:
+```hjson
+doorLORD: {
+    desc: LORD
+    module: abracadabra
+    config: {
+        name: LORD
+        dropFileType: DOOR
+        cmd: "C:\\enigma-bbs\\utils\\bivrost.exe"
+        args: [
+            "--port={srvPort}" //  bivrost! will connect this port on localhost
+            //  Note that the final <target> params bivrost! will use to
+            //  launch the door are grouped here. The {fd} variable could
+            //  also be supplied here if needed.
+            //
+            "C:\\doors\\netfoss\\nf.bat /N{node} /H{fd} C:\\doors\\LORD\\start.bat {node}"
+        ],
+        nodeMax: 5
+        tooManyArt: DOORMANY
+        io: socket
+    }
+}
+```
+
+We've now told ENiGMA½ to launch LORD through Netfoss by way of proxy through bivrost!. When launched, bivrost! will perform the following basic steps:
+
+1. Connect up to the ENiGMA½ temporary `socket` server port supplied via `--port`.
+2. Launch the NF Batch file which then calls LORD's start.bat with the node number.
+3. Finally, launch LORD.
 
 ## License
 BSD 2-Clause. See [LICENSE.TXT](LICENSE.TXT).
