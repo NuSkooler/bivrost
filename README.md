@@ -81,3 +81,5 @@ We've now told ENiGMA½ to launch Jezebel by way of proxy through bivrost!. When
 2. Read the `DOOR32.SYS` supplied at `--dropfile` and produce a new `DOOR32.SYS` containing the shared socket descriptor that Jezebel wants in the `--out` directory.
 3. Finally, launch Jezebel.
 
+## License
+BSD 2-Clause. See [LICENSE.TXT](LICENSE.TXT).
