@@ -49,7 +49,7 @@ Usage: bivrost --port=<port> [--dropfile=<dropfile> --out=<out>] <target>
 
 Options:
   -h, --help             Show this message.
-  --version              Show the version of bivrost. 
+  --version              Show the version of bivrost!
   --port=<port>          Set server port in which to connect to.
   --dropfile=<dropfile>  Set DOOR32.SYS dropfile path.
   --out=<out>            Set output directory for new DOOR32.SYS.
