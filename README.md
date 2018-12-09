@@ -2,7 +2,9 @@
 A socket server to shared socket descriptor bridge.
 
 ## General
-bivrost! is a small utility mostly for working with DOOR32.SYS style socket file descriptor sharing in conjunction with systems such as ENiGMA½ BBS that do not support the feature directly. With bivrost! you can bridge the two.
+bivrost! is a small utility mostly for working with DOOR32.SYS style socket file descriptor sharing in conjunction with systems such as [ENiGMA½ BBS](https://github.com/NuSkooler/enigma-bbs/) that do not support the feature directly. With bivrost! you can bridge the two.
+
+bivrost! is released under [Phenom Productions](https://www.phenomprod.com/) BBS mods! Snag a fresh release from your favorite super snazzy-pants BBS today!
 
 ## Usage
 bivrost! is fairly simple. Below is the current `--help` output:
@@ -23,19 +25,21 @@ Options:
                          be overridden.
 
 Notes:
-  If <target> contains arguments, it should be quoted. For example: "DOOR.EXE /D -N 1"
+  If <target> contains arguments, it should be quoted. For example:
+  "DOOR.EXE /D -N 1".
 
-  Arguments within <target> may also contain {fd} which will be substituted with the
-  shared socket descriptor (the same value to be found in the output DOOR32.SYS).
+  Arguments within <target> may also contain {fd} which will be
+  substituted with the shared socket descriptor (the same value to be found
+  in the output DOOR32.SYS).
 
-  If your door does not use DOOR32.SYS you can omit --dropfile and --out and still
-  use {fd}.
+  If your door does not use DOOR32.SYS you can omit --dropfile and --out and
+  still use the {fd} variable.
 ```
 
-Standard usage currently is in two forms:
+Standard usage currently mostly falls into one of two forms:
 
-1. Reading and producing a new `DOOR32.SYS`
-2. Direct use where a `DOOR32.SYS` is not involved at all. For example, with NetFoss and 16-bit doors such as LORD. In this pattern, the `{fd}` param will be of use to you.
+1. Reading and producing a new `DOOR32.SYS` for a door to consume.
+2. Direct use where a `DOOR32.SYS` is not involved at all. For example, with [NetFoss](http://pcmicro.com/netfoss/) and 16-bit doors such as LORD. In this pattern, the `{fd}` param will be of use to you.
 
 ### Example
 The following illustrates setting up [Jezebel](http://www.dreamlandbbs.org/jezebel/) under Windows:
@@ -43,25 +47,31 @@ The following illustrates setting up [Jezebel](http://www.dreamlandbbs.org/jezeb
 First, your `menu.hjson` may have an entry similar to the following:
 ```hjson
 doorJezebel: {
-	desc: Jezebel
-	module: abracadabra
-	config: {
-		name: Jezebel
-		dropFileType: DOOR32
-		cmd: "C:\\enigma-bbs\\utils\\bivrost.exe"
-		args: [
-			"--port"
-			"{srvPort}",
-			"--dropfile",
-			"{dropFilePath}",
-			"--out",
-			"C:\\doors\\jezebel",
-			"C:\\doors\\jezebel\\jezw32.exe C:\\doors\\jezebel\\door32.sys"
-		],
-		nodeMax: 1
-		tooManyArt: DOORMANY
-		io: socket
-	}
+    desc: Jezebel
+    module: abracadabra
+    config: {
+        name: Jezebel
+        dropFileType: DOOR32
+        cmd: "C:\\enigma-bbs\\utils\\bivrost.exe"
+        args: [
+            "--port"
+            "{srvPort}",            //  bivrost! will connect this port on localhost
+            "--dropfile",
+            "{dropFilePath}",       //  ...and read this DOOR32.SYS produced by ENiGMA½
+            "--out",
+            "C:\\doors\\jezebel",   //  ...and produce a NEW DOOR32.SYS here.
+
+            //
+            //  Note that the final <target> params bivrost! will use to
+            //  launch the door are grouped here. The {fd} variable could
+            //  also be supplied here if needed.
+            //
+            "C:\\doors\\jezebel\\jezw32.exe C:\\doors\\jezebel\\door32.sys"
+        ],
+        nodeMax: 1
+        tooManyArt: DOORMANY
+        io: socket
+    }
 }
 ```
 
