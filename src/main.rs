@@ -238,8 +238,6 @@ fn main() {
         .map(|arg| arg.replace("{fd}", &format!("{}", shared_fd)))
         .collect::<Vec<String>>();
 
-    println!("{:?}", target_args);
-   
     let command = target_args.first().unwrap();
 
     let target_exit_status = Command::new(command)
