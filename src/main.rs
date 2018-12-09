@@ -27,7 +27,7 @@ use codepage_437::IntoCp437;
 use clap::crate_version;
 use docopt::Docopt;
 use std::fs;
-//use std::io::Error;
+#[cfg(windows)] use std::io::Error;
 use std::net::TcpStream;
 #[cfg(not (windows))]use std::os::unix::io::AsRawFd;
 #[cfg(windows)] use std::os::windows::io::AsRawSocket;
