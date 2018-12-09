@@ -25,15 +25,13 @@ Options:
                          be overridden.
 
 Notes:
-  If <target> contains arguments, it should be quoted. For example:
-  "DOOR.EXE /D -N 1".
+  If <target> contains arguments, it should be quoted. For example: "DOOR.EXE /D -N 1"
 
-  Arguments within <target> may also contain {fd} which will be
-  substituted with the shared socket descriptor (the same value to be found
-  in the output DOOR32.SYS).
+  Arguments within <target> may also contain {fd} which will be substituted with the
+  shared socket descriptor (the same value to be found in the output DOOR32.SYS).
 
-  If your door does not use DOOR32.SYS you can omit --dropfile and --out and
-  still use the {fd} variable.
+  If your door does not use DOOR32.SYS you can omit --dropfile and --out and still
+  use {fd}.
 ```
 
 Standard usage currently mostly falls into one of two forms:
