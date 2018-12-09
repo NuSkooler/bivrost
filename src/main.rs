@@ -1,3 +1,20 @@
+/*
+
+ ::::: __________________________________________________________________ :::::
+ : ____\ .__ .__ _____ __. ____ ___ _______ .__ ______ .__ _____ .__ _. /____ :
+ __\ .___! __|_/__    / _|__   /  /_____  __|  \ gRK __|_ \  __  |_ \ !___. /__
+ \   ! ___/  |/  /___/  |   \__\ ._/  __\/  \   \___/  |/  \/  \_./  \___ !   /
+ /__  (___   /\____\____|\   ____|   /  /___|\   ______.    ____\|\   ___)  __\
+   /____  \_/ ___________ \_/ __ |__/ _______ \_/ ____ |___/ _____ \_/  ____\
+ :     /________________________________________________________________\     :
+ :::::       +  p  H  E  N  O  M  p  R  O  D  U  C  T  I  O  N  S  +      :::::
+ ==============================================================================
+ bivrost! A socket server to shared socket descriptor bridge.
+
+ Copyright (c) 2018, Bryan D. Ashby
+ See LICENSE.TXT
+
+*/
 extern crate clap;
 extern crate codepage_437;
 extern crate docopt;
@@ -60,7 +77,8 @@ struct Args {
 }
 
 //
-//  DOOR32.SYS - https://github.com/NuSkooler/ansi-bbs/blob/master/docs/dropfile_formats/door32_sys.txt
+//  DOOR32.SYS
+//  https://github.com/NuSkooler/ansi-bbs/blob/master/docs/dropfile_formats/door32_sys.txt
 //
 fn read_door32sys_dropfile(dropfile_path: &str) -> Result<String, String> {
     let path = Path::new(dropfile_path);
@@ -104,7 +122,6 @@ fn write_new_door32sys_dropfile(
     //  2 - Shared socket fd
     //  ...the rest is just copied over from the original.
     //      
-    //  :TODO: convert to CP437!
     let mut contents = format!("2\r\n{}\r\n", socket_fd);
     let remaining_lines = orig_contents.lines().skip(2);
     for line in remaining_lines {
