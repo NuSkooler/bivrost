@@ -27,18 +27,19 @@ use codepage_437::IntoCp437;
 use clap::crate_version;
 use docopt::Docopt;
 use std::fs;
-use std::io::Error;
+//use std::io::Error;
 use std::net::TcpStream;
-use std::os::windows::io::AsRawSocket;
-use std::os::windows::raw::HANDLE;
+#[cfg(not (windows))]use std::os::unix::io::AsRawFd;
+#[cfg(windows)] use std::os::windows::io::AsRawSocket;
+#[cfg(windows)] use std::os::windows::raw::HANDLE;
 use std::path::Path;
 use std::process;
 use std::process::Command;
 use std::vec::Vec;
-use winapi::shared::minwindef::TRUE;
-use winapi::um::handleapi::DuplicateHandle;
-use winapi::um::processthreadsapi::GetCurrentProcess;
-use winapi::um::winnt::DUPLICATE_SAME_ACCESS;
+#[cfg(windows)] use winapi::shared::minwindef::TRUE;
+#[cfg(windows)] use winapi::um::handleapi::DuplicateHandle;
+#[cfg(windows)] use winapi::um::processthreadsapi::GetCurrentProcess;
+#[cfg(windows)] use winapi::um::winnt::DUPLICATE_SAME_ACCESS;
 
 const USAGE: &'static str = "
 bivrost! A socket server to shared socket descriptor bridge.
@@ -104,7 +105,7 @@ fn dropfile_filename(filename: &str) -> String {
 
 #[cfg(not(windows))]
 fn dropfile_filename(filename: &str) -> String {
-    filename
+    filename.to_string()
 }
 
 fn write_new_door32sys_dropfile(
