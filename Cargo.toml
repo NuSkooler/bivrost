@@ -1,0 +1,19 @@
+[package]
+name = "bivrost"
+version = "1.0.0"
+authors = ["Bryan D. Ashby <bryan@l33t.codes>"]
+edition = "2018"
+description = "A socket server to shared socket descriptor bridge."
+keywords = ["bbs", "enigma-bbs", "door32"]
+license = "BSD-2-Clause"
+readme = "README.md"
+
+[dependencies]
+docopt = "1"
+serde = "1.0"
+serde_derive = "1.0"
+clap = "2.9"
+codepage-437 = "0.1.0"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["handleapi", "processthreadsapi", "std"] }
