@@ -18,28 +18,38 @@
 extern crate clap;
 extern crate codepage_437;
 extern crate docopt;
-#[macro_use] extern crate serde_derive;
-#[cfg(windows)] extern crate winapi;
+#[macro_use]
+extern crate serde_derive;
+#[cfg(windows)]
+extern crate winapi;
 
-use codepage_437::CP437_CONTROL;
+use clap::crate_version;
 use codepage_437::FromCp437;
 use codepage_437::IntoCp437;
-use clap::crate_version;
+use codepage_437::CP437_CONTROL;
 use docopt::Docopt;
 use std::fs;
-#[cfg(windows)] use std::io::Error;
+#[cfg(windows)]
+use std::io::Error;
 use std::net::TcpStream;
-#[cfg(not (windows))]use std::os::unix::io::AsRawFd;
-#[cfg(windows)] use std::os::windows::io::AsRawSocket;
-#[cfg(windows)] use std::os::windows::raw::HANDLE;
+#[cfg(not(windows))]
+use std::os::unix::io::AsRawFd;
+#[cfg(windows)]
+use std::os::windows::io::AsRawSocket;
+#[cfg(windows)]
+use std::os::windows::raw::HANDLE;
 use std::path::Path;
 use std::process;
 use std::process::Command;
 use std::vec::Vec;
-#[cfg(windows)] use winapi::shared::minwindef::TRUE;
-#[cfg(windows)] use winapi::um::handleapi::DuplicateHandle;
-#[cfg(windows)] use winapi::um::processthreadsapi::GetCurrentProcess;
-#[cfg(windows)] use winapi::um::winnt::DUPLICATE_SAME_ACCESS;
+#[cfg(windows)]
+use winapi::shared::minwindef::TRUE;
+#[cfg(windows)]
+use winapi::um::handleapi::DuplicateHandle;
+#[cfg(windows)]
+use winapi::um::processthreadsapi::GetCurrentProcess;
+#[cfg(windows)]
+use winapi::um::winnt::DUPLICATE_SAME_ACCESS;
 
 const USAGE: &'static str = "
 bivrost! A socket server to shared socket descriptor bridge.
@@ -70,11 +80,11 @@ const DOOR32_SYS_FILENAME: &'static str = "DOOR32.SYS";
 
 #[derive(Debug, Deserialize)]
 struct Args {
-    flag_port:      i32,
-    flag_dropfile:  String,
-    flag_out:       String,
-    arg_target:     String,   
-    flag_version:   bool
+    flag_port: i32,
+    flag_dropfile: String,
+    flag_out: String,
+    arg_target: String,
+    flag_version: bool,
 }
 
 //
@@ -84,17 +94,22 @@ struct Args {
 fn read_door32sys_dropfile(dropfile_path: &str) -> Result<String, String> {
     let path = Path::new(dropfile_path);
     let is_door32_filename = match path.file_name() {
-        Some(ref f) => f.to_string_lossy().eq_ignore_ascii_case(DOOR32_SYS_FILENAME),
-        None        => false,
+        Some(ref f) => f
+            .to_string_lossy()
+            .eq_ignore_ascii_case(DOOR32_SYS_FILENAME),
+        None => false,
     };
 
-    if !is_door32_filename {        
-        return Err(format!("File at {} does not appear to be DOOR32.SYS", dropfile_path));
+    if !is_door32_filename {
+        return Err(format!(
+            "File at {} does not appear to be DOOR32.SYS",
+            dropfile_path
+        ));
     }
 
     match fs::read(path) {
-        Ok(contents)    => Ok(String::from_cp437(contents, &CP437_CONTROL)),
-        Err(e)          => Err(e.to_string()),
+        Ok(contents) => Ok(String::from_cp437(contents, &CP437_CONTROL)),
+        Err(e) => Err(e.to_string()),
     }
 }
 
@@ -109,8 +124,10 @@ fn dropfile_filename(filename: &str) -> String {
 }
 
 fn write_new_door32sys_dropfile(
-    orig_contents: &str, out_path: &Path, socket_fd: i64) -> Result<String, String>
-{
+    orig_contents: &str,
+    out_path: &Path,
+    socket_fd: i64,
+) -> Result<String, String> {
     if !out_path.is_dir() {
         return Err(format!("{} is not a directory", out_path.to_string_lossy()));
     }
@@ -122,7 +139,7 @@ fn write_new_door32sys_dropfile(
     //  1 - Comm type (2=telnet)
     //  2 - Shared socket fd
     //  ...the rest is just copied over from the original.
-    //      
+    //
     let mut contents = format!("2\r\n{}\r\n", socket_fd);
     let remaining_lines = orig_contents.lines().skip(2);
     for line in remaining_lines {
@@ -130,17 +147,18 @@ fn write_new_door32sys_dropfile(
     }
 
     match contents.to_string().into_cp437(&CP437_CONTROL) {
-        Ok(cp437)   => {
-            match fs::write(&dropfile_path, cp437) {
-                Ok(()) => {
-                    println!("Created new dropfile at {}", dropfile_path.to_string_lossy());
-                    Ok(dropfile_path.to_string_lossy().to_string())
-                },
-                Err(e) => Err(e.to_string()),
+        Ok(cp437) => match fs::write(&dropfile_path, cp437) {
+            Ok(()) => {
+                println!(
+                    "Created new dropfile at {}",
+                    dropfile_path.to_string_lossy()
+                );
+                Ok(dropfile_path.to_string_lossy().to_string())
             }
+            Err(e) => Err(e.to_string()),
         },
-        Err(e)      => Err(format!("Failed to convert {} to CP437", e.into_string())),
-    }    
+        Err(e) => Err(format!("Failed to convert {} to CP437", e.into_string())),
+    }
 }
 
 #[cfg(windows)]
@@ -157,14 +175,17 @@ fn get_socket_fd(stream: TcpStream) -> Result<i64, String> {
             dupe_handle_ptr,
             0,
             TRUE,
-            DUPLICATE_SAME_ACCESS
+            DUPLICATE_SAME_ACCESS,
         )
     };
 
     if ret == TRUE {
         Ok(dupe_handle as i64)
     } else {
-        Err(format!("Failed to duplicate handle: {}", Error::last_os_error().to_string()))
+        Err(format!(
+            "Failed to duplicate handle: {}",
+            Error::last_os_error().to_string()
+        ))
     }
 }
 
@@ -178,8 +199,8 @@ fn connect_to_supplied_port(port: i32) -> Result<TcpStream, String> {
     println!("Connecting to {}...", address);
 
     match TcpStream::connect(address) {
-        Ok(stream)  => Ok(stream),
-        Err(e)      => Err(e.to_string()),
+        Ok(stream) => Ok(stream),
+        Err(e) => Err(e.to_string()),
     }
 }
 
@@ -196,40 +217,40 @@ fn main() {
         process::exit(EXIT_SUCCESS);
     }
 
-    let stream = connect_to_supplied_port(args.flag_port)
-        .unwrap_or_else(|e| {
-            println!("Failed to connect: {}", e.to_string());
-            process::exit(EXIT_FAILURE);
-        });
+    let stream = connect_to_supplied_port(args.flag_port).unwrap_or_else(|e| {
+        println!("Failed to connect: {}", e.to_string());
+        process::exit(EXIT_FAILURE);
+    });
 
-    let shared_fd = get_socket_fd(stream)
-        .unwrap_or_else(|e| {
-            println!("{}", e.to_string());
-            process::exit(EXIT_FAILURE);
-        });
+    let shared_fd = get_socket_fd(stream).unwrap_or_else(|e| {
+        println!("{}", e.to_string());
+        process::exit(EXIT_FAILURE);
+    });
 
     println!("Connected. Socket file descriptor is {}", shared_fd);
 
     if args.flag_dropfile.len() > 0 {
-        let dropfile = read_door32sys_dropfile(&args.flag_dropfile)
-            .unwrap_or_else(|e| {
-                println!("Failed to read dropfile at {}: {}", args.flag_dropfile, e.to_string());
-                process::exit(EXIT_FAILURE);
-            });
+        let dropfile = read_door32sys_dropfile(&args.flag_dropfile).unwrap_or_else(|e| {
+            println!(
+                "Failed to read dropfile at {}: {}",
+                args.flag_dropfile,
+                e.to_string()
+            );
+            process::exit(EXIT_FAILURE);
+        });
 
         let out_path = match args.flag_out.is_empty() {
-                true => {
-                    let p = Path::new(&args.flag_dropfile);
-                    p.parent().unwrap()
-                },
-                false => Path::new(&args.flag_out),
-            };            
+            true => {
+                let p = Path::new(&args.flag_dropfile);
+                p.parent().unwrap()
+            }
+            false => Path::new(&args.flag_out),
+        };
 
-        write_new_door32sys_dropfile(&dropfile, &out_path, shared_fd)
-            .unwrap_or_else(|e| {
-                println!("{}", e.to_string());
-                process::exit(EXIT_FAILURE);
-            });
+        write_new_door32sys_dropfile(&dropfile, &out_path, shared_fd).unwrap_or_else(|e| {
+            println!("{}", e.to_string());
+            process::exit(EXIT_FAILURE);
+        });
     }
 
     let split_args: Vec<String> = args.arg_target.split(' ').map(|a| a.to_string()).collect();
@@ -249,11 +270,11 @@ fn main() {
         });
 
     match target_exit_status.code() {
-        Some(code)  => {
+        Some(code) => {
             println!("Process exited with code {}", code);
             process::exit(code);
-        },
-        None        => {
+        }
+        None => {
             println!("Process terminated by signal");
             process::exit(EXIT_FAILURE);
         }
