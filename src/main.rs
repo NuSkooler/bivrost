@@ -1,5 +1,4 @@
 /*
-
  ::::: __________________________________________________________________ :::::
  : ____\ .__ .__ _____ __. ____ ___ _______ .__ ______ .__ _____ .__ _. /____ :
  __\ .___! __|_/__    / _|__   /  /_____  __|  \ gRK __|_ \  __  |_ \ !___. /__
@@ -13,8 +12,8 @@
 
  Copyright (c) 2018, Bryan D. Ashby
  See LICENSE.TXT
-
 */
+
 extern crate clap;
 extern crate codepage_437;
 extern crate docopt;
@@ -24,32 +23,14 @@ extern crate serde_derive;
 extern crate winapi;
 
 use clap::crate_version;
-use codepage_437::FromCp437;
-use codepage_437::IntoCp437;
-use codepage_437::CP437_CONTROL;
+use codepage_437::{FromCp437, IntoCp437, CP437_CONTROL};
 use docopt::Docopt;
 use std::fs;
-#[cfg(windows)]
-use std::io::Error;
 use std::net::TcpStream;
-#[cfg(not(windows))]
-use std::os::unix::io::AsRawFd;
-#[cfg(windows)]
-use std::os::windows::io::AsRawSocket;
-#[cfg(windows)]
-use std::os::windows::raw::HANDLE;
 use std::path::Path;
 use std::process;
 use std::process::Command;
 use std::vec::Vec;
-#[cfg(windows)]
-use winapi::shared::minwindef::TRUE;
-#[cfg(windows)]
-use winapi::um::handleapi::DuplicateHandle;
-#[cfg(windows)]
-use winapi::um::processthreadsapi::GetCurrentProcess;
-#[cfg(windows)]
-use winapi::um::winnt::DUPLICATE_SAME_ACCESS;
 
 const USAGE: &'static str = "
 bivrost! A socket server to shared socket descriptor bridge.
@@ -163,6 +144,14 @@ fn write_new_door32sys_dropfile(
 
 #[cfg(windows)]
 fn get_socket_fd(stream: TcpStream) -> Result<i64, String> {
+    use std::io::Error;
+    use std::os::windows::io::AsRawSocket;
+    use std::os::windows::raw::HANDLE;
+    use winapi::shared::minwindef::TRUE;
+    use winapi::um::handleapi::DuplicateHandle;
+    use winapi::um::processthreadsapi::GetCurrentProcess;
+    use winapi::um::winnt::DUPLICATE_SAME_ACCESS;
+
     let sock_handle = stream.as_raw_socket() as HANDLE;
     let mut dupe_handle: HANDLE = 0 as HANDLE;
     let dupe_handle_ptr: *mut HANDLE = &mut dupe_handle;
@@ -191,6 +180,7 @@ fn get_socket_fd(stream: TcpStream) -> Result<i64, String> {
 
 #[cfg(not(windows))]
 fn get_socket_fd(stream: TcpStream) -> Result<i64, String> {
+    use std::os::unix::io::AsRawFd;
     Ok(stream.as_raw_fd() as i64)
 }
 
