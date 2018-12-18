@@ -26,6 +26,8 @@ use clap::crate_version;
 use codepage_437::{FromCp437, IntoCp437, CP437_CONTROL};
 use docopt::Docopt;
 use std::fs;
+use std::io::Error;
+use std::io::ErrorKind;
 use std::net::TcpStream;
 use std::path::Path;
 use std::process;
@@ -72,26 +74,22 @@ struct Args {
 //  DOOR32.SYS
 //  https://github.com/NuSkooler/ansi-bbs/blob/master/docs/dropfile_formats/door32_sys.txt
 //
-fn read_door32sys_dropfile(dropfile_path: &str) -> Result<String, String> {
-    let path = Path::new(dropfile_path);
-    let is_door32_filename = match path.file_name() {
-        Some(ref f) => f
-            .to_string_lossy()
-            .eq_ignore_ascii_case(DOOR32_SYS_FILENAME),
-        None => false,
-    };
-
-    if !is_door32_filename {
-        return Err(format!(
-            "File at {} does not appear to be DOOR32.SYS",
-            dropfile_path
+fn read_door32sys_dropfile(dropfile_path: &str) -> Result<String, Error> {
+    let pathname = Path::new(dropfile_path).file_name().ok_or(Error::new(
+        ErrorKind::NotFound,
+        format!("File {} does not name a file", dropfile_path),
+    ))?;
+    if !pathname
+        .to_string_lossy()
+        .eq_ignore_ascii_case(DOOR32_SYS_FILENAME)
+    {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            format!("File {} is not DOOR32.SYS", dropfile_path),
         ));
     }
-
-    match fs::read(path) {
-        Ok(contents) => Ok(String::from_cp437(contents, &CP437_CONTROL)),
-        Err(e) => Err(e.to_string()),
-    }
+    let contents = fs::read(pathname)?;
+    Ok(String::from_cp437(contents, &CP437_CONTROL))
 }
 
 #[cfg(windows)]
@@ -144,7 +142,6 @@ fn write_new_door32sys_dropfile(
 
 #[cfg(windows)]
 fn get_socket_fd(stream: TcpStream) -> Result<i64, String> {
-    use std::io::Error;
     use std::os::windows::io::AsRawSocket;
     use std::os::windows::raw::HANDLE;
     use winapi::shared::minwindef::TRUE;
