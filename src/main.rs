@@ -28,13 +28,14 @@ use docopt::Docopt;
 use std::fs;
 use std::io::Error;
 use std::io::ErrorKind;
+use std::io::Write;
 use std::net::TcpStream;
 use std::path::Path;
 use std::process;
 use std::process::Command;
 use std::vec::Vec;
 
-const USAGE: &'static str = "
+const USAGE: &str = "
 bivrost! A socket server to shared socket descriptor bridge.
 Copyright (c) 2018, Bryan D. Ashby
 
@@ -59,7 +60,7 @@ Notes:
   If your door does not use DOOR32.SYS you can omit --dropfile and --out and still
   use {fd}.";
 
-const DOOR32_SYS_FILENAME: &'static str = "DOOR32.SYS";
+const DOOR32_SYS_FILENAME: &str = "DOOR32.SYS";
 
 #[derive(Debug, Deserialize)]
 struct Args {
@@ -105,13 +106,14 @@ fn dropfile_filename(filename: &str) -> String {
 fn write_new_door32sys_dropfile(
     orig_contents: &str,
     out_path: &Path,
-    socket_fd: i64,
-) -> Result<String, String> {
+    socket_fd: u64,
+) -> Result<String, Error> {
     if !out_path.is_dir() {
-        return Err(format!("{} is not a directory", out_path.to_string_lossy()));
+        return Err(Error::new(
+            ErrorKind::NotFound,
+            format!("{} is not a directory", out_path.to_string_lossy()),
+        ));
     }
-
-    let dropfile_path = out_path.join(dropfile_filename(DOOR32_SYS_FILENAME));
 
     //
     //  First two lines are as follows:
@@ -119,29 +121,28 @@ fn write_new_door32sys_dropfile(
     //  2 - Shared socket fd
     //  ...the rest is just copied over from the original.
     //
-    let mut contents = format!("2\r\n{}\r\n", socket_fd);
-    let remaining_lines = orig_contents.lines().skip(2);
-    for line in remaining_lines {
-        contents.push_str(&format!("{}\r\n", line));
+    let dropfile_path = out_path.join(dropfile_filename(DOOR32_SYS_FILENAME));
+    let mut file = fs::File::create(&dropfile_path)?;
+    file.write_all(b"2\r\n")?;
+    file.write_all(socket_fd.to_string().as_bytes())?;
+    file.write_all(b"\r\n")?;
+    for line in orig_contents.lines().skip(2) {
+        let cp437 = &line.to_string().into_cp437(&CP437_CONTROL).map_err(|e| {
+            Error::new(
+                ErrorKind::InvalidData,
+                format!("Failed to convert to CP437: {}", e.into_string()),
+            )
+        })?;
+        file.write_all(cp437)?;
+        file.write_all(b"\r\n")?;
     }
-
-    match contents.to_string().into_cp437(&CP437_CONTROL) {
-        Ok(cp437) => match fs::write(&dropfile_path, cp437) {
-            Ok(()) => {
-                println!(
-                    "Created new dropfile at {}",
-                    dropfile_path.to_string_lossy()
-                );
-                Ok(dropfile_path.to_string_lossy().to_string())
-            }
-            Err(e) => Err(e.to_string()),
-        },
-        Err(e) => Err(format!("Failed to convert {} to CP437", e.into_string())),
-    }
+    let pathname = dropfile_path.to_string_lossy();
+    println!("Created new dropfile at {}", &pathname);
+    Ok(pathname.to_string())
 }
 
 #[cfg(windows)]
-fn get_socket_fd(stream: TcpStream) -> Result<i64, String> {
+fn get_socket_fd(stream: TcpStream) -> Result<u64, String> {
     use std::os::windows::io::AsRawSocket;
     use std::os::windows::raw::HANDLE;
     use winapi::shared::minwindef::TRUE;
@@ -166,7 +167,7 @@ fn get_socket_fd(stream: TcpStream) -> Result<i64, String> {
     };
 
     if ret == TRUE {
-        Ok(dupe_handle as i64)
+        Ok(dupe_handle as u64)
     } else {
         Err(format!(
             "Failed to duplicate handle: {}",
@@ -176,9 +177,9 @@ fn get_socket_fd(stream: TcpStream) -> Result<i64, String> {
 }
 
 #[cfg(not(windows))]
-fn get_socket_fd(stream: TcpStream) -> Result<i64, String> {
+fn get_socket_fd(stream: TcpStream) -> Result<u64, String> {
     use std::os::unix::io::AsRawFd;
-    Ok(stream.as_raw_fd() as i64)
+    Ok(stream.as_raw_fd() as u64)
 }
 
 fn connect_to_supplied_port(port: i32) -> Result<TcpStream, String> {
