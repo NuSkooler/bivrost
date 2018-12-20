@@ -1,5 +1,4 @@
 /*
-
  ::::: __________________________________________________________________ :::::
  : ____\ .__ .__ _____ __. ____ ___ _______ .__ ______ .__ _____ .__ _. /____ :
  __\ .___! __|_/__    / _|__   /  /_____  __|  \ gRK __|_ \  __  |_ \ !___. /__
@@ -13,35 +12,30 @@
 
  Copyright (c) 2018, Bryan D. Ashby
  See LICENSE.TXT
-
 */
+
 extern crate clap;
 extern crate codepage_437;
 extern crate docopt;
-#[macro_use] extern crate serde_derive;
-#[cfg(windows)] extern crate winapi;
+#[macro_use]
+extern crate serde_derive;
+#[cfg(windows)]
+extern crate winapi;
 
-use codepage_437::CP437_CONTROL;
-use codepage_437::FromCp437;
-use codepage_437::IntoCp437;
 use clap::crate_version;
+use codepage_437::{FromCp437, IntoCp437, CP437_CONTROL};
 use docopt::Docopt;
 use std::fs;
-#[cfg(windows)] use std::io::Error;
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Write;
 use std::net::TcpStream;
-#[cfg(not (windows))]use std::os::unix::io::AsRawFd;
-#[cfg(windows)] use std::os::windows::io::AsRawSocket;
-#[cfg(windows)] use std::os::windows::raw::HANDLE;
 use std::path::Path;
 use std::process;
 use std::process::Command;
 use std::vec::Vec;
-#[cfg(windows)] use winapi::shared::minwindef::TRUE;
-#[cfg(windows)] use winapi::um::handleapi::DuplicateHandle;
-#[cfg(windows)] use winapi::um::processthreadsapi::GetCurrentProcess;
-#[cfg(windows)] use winapi::um::winnt::DUPLICATE_SAME_ACCESS;
 
-const USAGE: &'static str = "
+const USAGE: &str = "
 bivrost! A socket server to shared socket descriptor bridge.
 Copyright (c) 2018, Bryan D. Ashby
 
@@ -66,36 +60,37 @@ Notes:
   If your door does not use DOOR32.SYS you can omit --dropfile and --out and still
   use {fd}.";
 
-const DOOR32_SYS_FILENAME: &'static str = "DOOR32.SYS";
+const DOOR32_SYS_FILENAME: &str = "DOOR32.SYS";
 
 #[derive(Debug, Deserialize)]
 struct Args {
-    flag_port:      i32,
-    flag_dropfile:  String,
-    flag_out:       String,
-    arg_target:     String,   
-    flag_version:   bool
+    flag_port: i32,
+    flag_dropfile: String,
+    flag_out: String,
+    arg_target: String,
+    flag_version: bool,
 }
 
 //
 //  DOOR32.SYS
 //  https://github.com/NuSkooler/ansi-bbs/blob/master/docs/dropfile_formats/door32_sys.txt
 //
-fn read_door32sys_dropfile(dropfile_path: &str) -> Result<String, String> {
-    let path = Path::new(dropfile_path);
-    let is_door32_filename = match path.file_name() {
-        Some(ref f) => f.to_string_lossy().eq_ignore_ascii_case(DOOR32_SYS_FILENAME),
-        None        => false,
-    };
-
-    if !is_door32_filename {        
-        return Err(format!("File at {} does not appear to be DOOR32.SYS", dropfile_path));
+fn read_door32sys_dropfile(dropfile_path: &str) -> Result<String, Error> {
+    let pathname = Path::new(dropfile_path).file_name().ok_or(Error::new(
+        ErrorKind::NotFound,
+        format!("File {} does not name a file", dropfile_path),
+    ))?;
+    if !pathname
+        .to_string_lossy()
+        .eq_ignore_ascii_case(DOOR32_SYS_FILENAME)
+    {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            format!("File {} is not DOOR32.SYS", dropfile_path),
+        ));
     }
-
-    match fs::read(path) {
-        Ok(contents)    => Ok(String::from_cp437(contents, &CP437_CONTROL)),
-        Err(e)          => Err(e.to_string()),
-    }
+    let contents = fs::read(pathname)?;
+    Ok(String::from_cp437(contents, &CP437_CONTROL))
 }
 
 #[cfg(windows)]
@@ -109,42 +104,52 @@ fn dropfile_filename(filename: &str) -> String {
 }
 
 fn write_new_door32sys_dropfile(
-    orig_contents: &str, out_path: &Path, socket_fd: i64) -> Result<String, String>
-{
+    orig_contents: &str,
+    out_path: &Path,
+    socket_fd: u64,
+) -> Result<String, Error> {
     if !out_path.is_dir() {
-        return Err(format!("{} is not a directory", out_path.to_string_lossy()));
+        return Err(Error::new(
+            ErrorKind::NotFound,
+            format!("{} is not a directory", out_path.to_string_lossy()),
+        ));
     }
-
-    let dropfile_path = out_path.join(dropfile_filename(DOOR32_SYS_FILENAME));
 
     //
     //  First two lines are as follows:
     //  1 - Comm type (2=telnet)
     //  2 - Shared socket fd
     //  ...the rest is just copied over from the original.
-    //      
-    let mut contents = format!("2\r\n{}\r\n", socket_fd);
-    let remaining_lines = orig_contents.lines().skip(2);
-    for line in remaining_lines {
-        contents.push_str(&format!("{}\r\n", line));
+    //
+    let dropfile_path = out_path.join(dropfile_filename(DOOR32_SYS_FILENAME));
+    let mut file = fs::File::create(&dropfile_path)?;
+    file.write_all(b"2\r\n")?;
+    file.write_all(socket_fd.to_string().as_bytes())?;
+    file.write_all(b"\r\n")?;
+    for line in orig_contents.lines().skip(2) {
+        let cp437 = &line.to_string().into_cp437(&CP437_CONTROL).map_err(|e| {
+            Error::new(
+                ErrorKind::InvalidData,
+                format!("Failed to convert to CP437: {}", e.into_string()),
+            )
+        })?;
+        file.write_all(cp437)?;
+        file.write_all(b"\r\n")?;
     }
-
-    match contents.to_string().into_cp437(&CP437_CONTROL) {
-        Ok(cp437)   => {
-            match fs::write(&dropfile_path, cp437) {
-                Ok(()) => {
-                    println!("Created new dropfile at {}", dropfile_path.to_string_lossy());
-                    Ok(dropfile_path.to_string_lossy().to_string())
-                },
-                Err(e) => Err(e.to_string()),
-            }
-        },
-        Err(e)      => Err(format!("Failed to convert {} to CP437", e.into_string())),
-    }    
+    let pathname = dropfile_path.to_string_lossy();
+    println!("Created new dropfile at {}", &pathname);
+    Ok(pathname.to_string())
 }
 
 #[cfg(windows)]
-fn get_socket_fd(stream: TcpStream) -> Result<i64, String> {
+fn get_socket_fd(stream: TcpStream) -> Result<u64, String> {
+    use std::os::windows::io::AsRawSocket;
+    use std::os::windows::raw::HANDLE;
+    use winapi::shared::minwindef::TRUE;
+    use winapi::um::handleapi::DuplicateHandle;
+    use winapi::um::processthreadsapi::GetCurrentProcess;
+    use winapi::um::winnt::DUPLICATE_SAME_ACCESS;
+
     let sock_handle = stream.as_raw_socket() as HANDLE;
     let mut dupe_handle: HANDLE = 0 as HANDLE;
     let dupe_handle_ptr: *mut HANDLE = &mut dupe_handle;
@@ -157,20 +162,24 @@ fn get_socket_fd(stream: TcpStream) -> Result<i64, String> {
             dupe_handle_ptr,
             0,
             TRUE,
-            DUPLICATE_SAME_ACCESS
+            DUPLICATE_SAME_ACCESS,
         )
     };
 
     if ret == TRUE {
-        Ok(dupe_handle as i64)
+        Ok(dupe_handle as u64)
     } else {
-        Err(format!("Failed to duplicate handle: {}", Error::last_os_error().to_string()))
+        Err(format!(
+            "Failed to duplicate handle: {}",
+            Error::last_os_error().to_string()
+        ))
     }
 }
 
 #[cfg(not(windows))]
-fn get_socket_fd(stream: TcpStream) -> Result<i64, String> {
-    Ok(stream.as_raw_fd() as i64)
+fn get_socket_fd(stream: TcpStream) -> Result<u64, String> {
+    use std::os::unix::io::AsRawFd;
+    Ok(stream.as_raw_fd() as u64)
 }
 
 fn connect_to_supplied_port(port: i32) -> Result<TcpStream, String> {
@@ -178,8 +187,8 @@ fn connect_to_supplied_port(port: i32) -> Result<TcpStream, String> {
     println!("Connecting to {}...", address);
 
     match TcpStream::connect(address) {
-        Ok(stream)  => Ok(stream),
-        Err(e)      => Err(e.to_string()),
+        Ok(stream) => Ok(stream),
+        Err(e) => Err(e.to_string()),
     }
 }
 
@@ -196,40 +205,40 @@ fn main() {
         process::exit(EXIT_SUCCESS);
     }
 
-    let stream = connect_to_supplied_port(args.flag_port)
-        .unwrap_or_else(|e| {
-            println!("Failed to connect: {}", e.to_string());
-            process::exit(EXIT_FAILURE);
-        });
+    let stream = connect_to_supplied_port(args.flag_port).unwrap_or_else(|e| {
+        println!("Failed to connect: {}", e.to_string());
+        process::exit(EXIT_FAILURE);
+    });
 
-    let shared_fd = get_socket_fd(stream)
-        .unwrap_or_else(|e| {
-            println!("{}", e.to_string());
-            process::exit(EXIT_FAILURE);
-        });
+    let shared_fd = get_socket_fd(stream).unwrap_or_else(|e| {
+        println!("{}", e.to_string());
+        process::exit(EXIT_FAILURE);
+    });
 
     println!("Connected. Socket file descriptor is {}", shared_fd);
 
     if args.flag_dropfile.len() > 0 {
-        let dropfile = read_door32sys_dropfile(&args.flag_dropfile)
-            .unwrap_or_else(|e| {
-                println!("Failed to read dropfile at {}: {}", args.flag_dropfile, e.to_string());
-                process::exit(EXIT_FAILURE);
-            });
+        let dropfile = read_door32sys_dropfile(&args.flag_dropfile).unwrap_or_else(|e| {
+            println!(
+                "Failed to read dropfile at {}: {}",
+                args.flag_dropfile,
+                e.to_string()
+            );
+            process::exit(EXIT_FAILURE);
+        });
 
         let out_path = match args.flag_out.is_empty() {
-                true => {
-                    let p = Path::new(&args.flag_dropfile);
-                    p.parent().unwrap()
-                },
-                false => Path::new(&args.flag_out),
-            };            
+            true => {
+                let p = Path::new(&args.flag_dropfile);
+                p.parent().unwrap()
+            }
+            false => Path::new(&args.flag_out),
+        };
 
-        write_new_door32sys_dropfile(&dropfile, &out_path, shared_fd)
-            .unwrap_or_else(|e| {
-                println!("{}", e.to_string());
-                process::exit(EXIT_FAILURE);
-            });
+        write_new_door32sys_dropfile(&dropfile, &out_path, shared_fd).unwrap_or_else(|e| {
+            println!("{}", e.to_string());
+            process::exit(EXIT_FAILURE);
+        });
     }
 
     let split_args: Vec<String> = args.arg_target.split(' ').map(|a| a.to_string()).collect();
@@ -249,11 +258,11 @@ fn main() {
         });
 
     match target_exit_status.code() {
-        Some(code)  => {
+        Some(code) => {
             println!("Process exited with code {}", code);
             process::exit(code);
-        },
-        None        => {
+        }
+        None => {
             println!("Process terminated by signal");
             process::exit(EXIT_FAILURE);
         }
